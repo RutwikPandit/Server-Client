@@ -1,0 +1,15 @@
+Assignment 3 code README , the codes are in the folders , please execute server first then client
+For server use portnumber as first argument otherwise it will give seg fault eg :    ./server.out 9000
+For client use portnumber as second argument , and first argument is localhost eg :  ./client.out localhost 9000
+The code has been written in a VM machine running Ubuntu , some parts of the code might need C11++ libraries.
+I have tested the code with multiple clients and server and the code works correctly. 
+Since select command handles a single client at a single time there is no issue of multiple clients trying to access/modify a single file.
+File upto 10 MB have been able to be transferred. The server sends packets in size of 1kb chunks at a single time.
+The socket connection is assumed to be reliable, and thus the file transfer runs on a single socket , where the first 4 bytes of the data specifies the size of the data to be received.
+The code works perfectly on my machine , if anything is wrong PLEASE contact me at rutwik.pandit@gmail.com / 9869086397
+The following error checking has been implemented: 
+When RETR a file present in the clients directory , the code will ask the client if he wants to overwrite the code. If client replies Y then it will overwrite , otherwise it wont.
+When STOR something at server the Server will send a reply to the client : "ACK" / "DEN" depending on whether the file already exists on the server side. If the file file already exists then the client wont be allowed to store the file , if the file doesn't exist then he will be able to store the file.
+DELE will also send a reply to the client whether the file to be deleted exists in the servers directory , incase it doesnt it will send an error , otherwise it will delete.
+No client will be able to delete the server.cpp source file.
+
