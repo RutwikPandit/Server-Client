@@ -27,7 +27,7 @@ file_to_addr = {}
 for file in file_names:
     file_to_addr[file] = {((host, port),shared_dir)} 
 
-public_servers = [12327, 12328, 12329]
+public_servers = [12497, 12498, 12499]
 
 
 neighbour_data = {}
@@ -56,7 +56,7 @@ if port in public_servers:
                 SN_socket = socket.socket()
                 SN_socket.connect((host, public_port))
                 #To denote that a SN is connecting 
-                num = 0
+                num = 4
                 SN_socket.send((str(num)).encode())
                 time.sleep(1)
 
@@ -73,57 +73,7 @@ if port in public_servers:
                 print("Could not connect to SN: ", ex)
 
 
-
-
-
-class handle_connection_request (threading.Thread):
-    def __init__(self, connecting_socket, addr):
-        threading.Thread.__init__(self)
-        self.connecting_socket = connecting_socket 
-        self.addr = addr
-        self.lock = threading.Lock()
-
-    def run(self):
-        global neighbour_count
-
-        client_type = int((self.connecting_socket.recv(1024)).decode())
-        if client_type == 0:
-            SN_ip = str(self.addr[0]) + str(self.addr[1])
-
-            SN_meta_data = self.connecting_socket.recv(1024)
-            SN_meta_data = pickle.loads(SN_meta_data)
-
-            
-            add_neighbour_data(SN_meta_data)
-            self.lock.acquire()
-            neighbour_count += 1
-
-            self.connecting_socket.send(pickle.dumps(file_to_addr))
-            self.lock.release()
-
-
-
-
-        elif client_type == 1:
-            new_thread = threaded_client(self.connecting_socket, self.addr)
-            new_thread.start()
-
-
-
-thread_count = 0
-while True:
-    child_socket, addr = server_socket.accept()     # Establish connection with client.
-    print('Got connection from', addr)
-    #handle request type 
-    connection_thread = handle_connection_request(child_socket, addr)
-    connection_thread.start()
-
-    thread_count += 1
-    print('Thread Count = ', thread_count)
-
-
-
-def get_metadata(child_socket, addr, lock):
+def get_meta_data(child_socket, addr, lock):
     global file_to_addr
     meta_data = child_socket.recv(1024)
     meta_data = pickle.loads(meta_data)
@@ -144,7 +94,6 @@ def get_metadata(child_socket, addr, lock):
     print(file_to_addr)
     lock.release()
 
-
 class threaded_client (threading.Thread):
     def __init__(self, child_socket, addr):
         threading.Thread.__init__(self)
@@ -155,7 +104,7 @@ class threaded_client (threading.Thread):
     def run(self):
         global file_to_addr, child_count
         print("Running thread ", threading.get_ident())
-        get_metadata(self.child_socket, self.addr, self.lock)
+        get_meta_data(self.child_socket, self.addr, self.lock)
 
         self.lock.acquire()
         child_count += 1
@@ -167,7 +116,7 @@ class threaded_client (threading.Thread):
             
             if choice == 1:
 
-                get_metadata(self.child_socket, self.addr, self.lock)
+                get_meta_data(self.child_socket, self.addr, self.lock)
 
             elif choice == 2:
 
@@ -175,13 +124,16 @@ class threaded_client (threading.Thread):
                 fn = self.child_socket.recv(1024)
                 file_name = fn.decode()
 
-
+                #Search in child and own data
+                self.lock.acquire()
                 if file_name in file_to_addr:
-                    self.lock.acquire()
                     all_choices = file_to_addr[file_name]
-                    self.lock.release()
+                elif file_name in neighbour_data:
+                    all_choices = neighbour_data[file_name]
                 else:
                     all_choices = set()
+                
+                self.lock.release()
 
                 self.child_socket.send(pickle.dumps(all_choices))
 
@@ -189,6 +141,68 @@ class threaded_client (threading.Thread):
                 break
 
         self.child_socket.close()
+
+
+
+class handle_connection_request (threading.Thread):
+    def __init__(self, connecting_socket, addr):
+        threading.Thread.__init__(self)
+        self.connecting_socket = connecting_socket 
+        self.addr = addr
+        self.lock = threading.Lock()
+
+    def run(self):
+        global neighbour_count
+
+        client_type = int((self.connecting_socket.recv(1024)).decode())
+        #Download
+        if client_type == 3:
+            tup = self.connecting_socket.recv(1024)
+            (filename,directory) = pickle.loads(tup)
+            print("sending",os.path.join(directory,filename))
+            f = open(os.path.join(directory,filename),'rb')
+            l = f.read(1024)
+            while (l):
+                self.connecting_socket.send(l)
+                l = f.read(1024)
+            f.close()
+            self.connecting_socket.close()
+
+        elif client_type == 4:
+            SN_ip = str(self.addr[0]) + str(self.addr[1])
+
+            SN_meta_data = self.connecting_socket.recv(1024)
+            SN_meta_data = pickle.loads(SN_meta_data)
+
+            
+            add_neighbour_data(SN_meta_data)
+            self.lock.acquire()
+            neighbour_count += 1
+
+            self.connecting_socket.send(pickle.dumps(file_to_addr))
+            self.lock.release()
+
+        elif client_type == 5:
+            new_thread = threaded_client(self.connecting_socket, self.addr)
+            new_thread.start()
+
+
+
+thread_count = 0
+while True:
+    child_socket, addr = server_socket.accept()     # Establish connection with client.
+    print('Got connection from', addr)
+    #handle request type 
+    connection_thread = handle_connection_request(child_socket, addr)
+    connection_thread.start()
+
+    thread_count += 1
+    print('Thread Count = ', thread_count)
+
+
+
+
+
 
 
 

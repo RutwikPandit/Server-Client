@@ -4,6 +4,7 @@ import pickle
 from os.path import expanduser
 import random
 import signal
+import time
 
 shared_dir = ""
 
@@ -11,6 +12,9 @@ def download(filename,address,directory):
 	global shared_dir
 	s = socket.socket()         # Create a socket object
 	s.connect(address)
+
+	s.send((str(3)).encode())
+	time.sleep(1)
 
 	s.send(pickle.dumps((filename,directory)))
 	f = open(os.path.join(shared_dir,filename),'wb')
@@ -74,16 +78,16 @@ child_pid = os.fork()
 if child_pid > 0:
 
 	child_socket = socket.socket()         # Create a socket object
-	child_socket.seettimeout(5.0)
+	child_socket.settimeout(5.0)
 	host = socket.gethostname() # Get local machine name
-	port_list = [12327, 12328, 12329]
+	port_list = [12497, 12498, 12499]
 
 	for port in port_list:
 		try:
 			child_socket.connect((host, port))
 			break
-		except:
-			print('Could not connect to: ', port)
+		except Exception as ex:
+			print('Could not connect to: ', port, " Exception - ",  ex)
 			
 
 	print('Connected to port: ', port)
@@ -91,8 +95,8 @@ if child_pid > 0:
 	print('Sharing your Metadata: ')
 
 	#To denote that it is a ON
-	child_socket.send((str(1)).encode())
-
+	child_socket.send((str(5)).encode())
+	time.sleep(1)
 	#To share metadata with SN
 	send_metadata(child_socket)
 
@@ -154,7 +158,9 @@ else:
 	listen_socket.listen(100)
 	while True:
 		c, addr = listen_socket.accept()
-		print("upload request arrived")
-		upload(c)
+		client_type = int((c.recv(1024)).decode())
+		if client_type == 3:
+			print("upload request arrived")
+			upload(c)
 
 
