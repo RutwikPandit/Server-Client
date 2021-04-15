@@ -8,19 +8,16 @@ import signal
 shared_dir = ""
 
 def download(filename,address,directory):
-	print("1")
 	global shared_dir
 	s = socket.socket()         # Create a socket object
 	s.connect(address)
 
 	s.send(pickle.dumps((filename,directory)))
-	print(filename, directory, shared_dir)
 	f = open(os.path.join(shared_dir,filename),'wb')
 	l = s.recv(1024)
 	while (l):
 		f.write(l)
 		l = s.recv(1024)
-	print(os.path.join(shared_dir,filename))
 	f.close()
 	s.shutdown(socket.SHUT_WR)
 	print(filename,"downloaded succesfully!")
@@ -70,15 +67,16 @@ def send_metadata(child_socket):
 	file_names.append(shared_dir)
 	file_names.append(listen_port)
 	
-	child_socket.send(pickle.dumps(file_names));
+	child_socket.send(pickle.dumps(file_names))
 
 
 child_pid = os.fork()
 if child_pid > 0:
 
 	child_socket = socket.socket()         # Create a socket object
+	child_socket.seettimeout(5.0)
 	host = socket.gethostname() # Get local machine name
-	port_list = [12347,12348]
+	port_list = [12327, 12328, 12329]
 
 	for port in port_list:
 		try:
@@ -91,6 +89,11 @@ if child_pid > 0:
 	print('Connected to port: ', port)
 
 	print('Sharing your Metadata: ')
+
+	#To denote that it is a ON
+	child_socket.send((str(1)).encode())
+
+	#To share metadata with SN
 	send_metadata(child_socket)
 
 	while True:
@@ -109,7 +112,6 @@ if child_pid > 0:
 		if choice not in  valid_choices:
 			continue
 		
-		print((str(choice)).encode())
 		child_socket.send((str(choice)).encode());
 
 		if choice == -1:

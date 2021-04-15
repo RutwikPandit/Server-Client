@@ -2,15 +2,126 @@ import socket               # Import socket module
 import pickle
 import os
 import threading
+from os.path import expanduser
+import sys
+import time
 
 server_socket = socket.socket()         # Create a socket object
 server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 host = socket.gethostname() # Get local machine name
-port = 12347                # Reserve a port for your service.
+port = int(sys.argv[1])                # Reserve a port for your service.
 server_socket.bind((host, port))        # Bind to the port
 server_socket.listen(100)                 # Now wait for client connection.
 
+
+print('Input shared directory name:')
+dname = input()
+
+home = expanduser("~")
+shared_dir = home+'/shared_data/' + dname
+file_names = os.listdir(shared_dir)
+
+
 file_to_addr = {}
+
+for file in file_names:
+    file_to_addr[file] = {((host, port),shared_dir)} 
+
+public_servers = [12327, 12328, 12329]
+
+
+neighbour_data = {}
+neighbour_count = 0
+child_count = 0
+
+
+def add_neighbour_data(SN_meta_data):
+    global neighbour_data
+    lock = threading.Lock()
+    lock.acquire()
+    for file_name in SN_meta_data:
+        if file_name in neighbour_data:
+            neighbour_data[file_name].update(SN_meta_data[file_name])
+        else:
+            neighbour_data[file_name] = SN_meta_data[file_name]
+
+    print("Got neighbour" , neighbour_data)
+    lock.release()
+
+if port in public_servers:
+    for public_port in public_servers:
+        if public_port > port:
+
+            try:
+                SN_socket = socket.socket()
+                SN_socket.connect((host, public_port))
+                #To denote that a SN is connecting 
+                num = 0
+                SN_socket.send((str(num)).encode())
+                time.sleep(1)
+
+                #Send current meta data to other SN
+                SN_socket.send(pickle.dumps(file_to_addr))
+
+                #Receive meta data of other SN
+                public_neighbour_data = SN_socket.recv(1024)
+                public_neighbour_data = pickle.loads(public_neighbour_data)
+                print("Received Data back from SN ", public_neighbour_data)
+                add_neighbour_data(public_neighbour_data)
+
+            except Exception as ex:
+                print("Could not connect to SN: ", ex)
+
+
+
+
+
+class handle_connection_request (threading.Thread):
+    def __init__(self, connecting_socket, addr):
+        threading.Thread.__init__(self)
+        self.connecting_socket = connecting_socket 
+        self.addr = addr
+        self.lock = threading.Lock()
+
+    def run(self):
+        global neighbour_count
+
+        client_type = int((self.connecting_socket.recv(1024)).decode())
+        if client_type == 0:
+            SN_ip = str(self.addr[0]) + str(self.addr[1])
+
+            SN_meta_data = self.connecting_socket.recv(1024)
+            SN_meta_data = pickle.loads(SN_meta_data)
+
+            
+            add_neighbour_data(SN_meta_data)
+            self.lock.acquire()
+            neighbour_count += 1
+
+            self.connecting_socket.send(pickle.dumps(file_to_addr))
+            self.lock.release()
+
+
+
+
+        elif client_type == 1:
+            new_thread = threaded_client(self.connecting_socket, self.addr)
+            new_thread.start()
+
+
+
+thread_count = 0
+while True:
+    child_socket, addr = server_socket.accept()     # Establish connection with client.
+    print('Got connection from', addr)
+    #handle request type 
+    connection_thread = handle_connection_request(child_socket, addr)
+    connection_thread.start()
+
+    thread_count += 1
+    print('Thread Count = ', thread_count)
+
+
 
 def get_metadata(child_socket, addr, lock):
     global file_to_addr
@@ -33,9 +144,6 @@ def get_metadata(child_socket, addr, lock):
     print(file_to_addr)
     lock.release()
 
-child_list = []
-
-
 
 class threaded_client (threading.Thread):
     def __init__(self, child_socket, addr):
@@ -45,21 +153,25 @@ class threaded_client (threading.Thread):
         self.lock = threading.Lock()
 
     def run(self):
-        global file_to_addr
+        global file_to_addr, child_count
         print("Running thread ", threading.get_ident())
         get_metadata(self.child_socket, self.addr, self.lock)
 
+        self.lock.acquire()
+        child_count += 1
+        self.lock.release()
+
         while True:
 
-            choice = self.child_socket.recv(1024)
+            choice = int((self.child_socket.recv(1024)).decode())
             
-            if int(choice.decode()) == 1:
+            if choice == 1:
 
                 get_metadata(self.child_socket, self.addr, self.lock)
 
-            elif int(choice.decode()) == 2:
+            elif choice == 2:
 
-                print('Choice: ',choice.decode())
+                print('Choice: ',choice)
                 fn = self.child_socket.recv(1024)
                 file_name = fn.decode()
 
@@ -73,20 +185,12 @@ class threaded_client (threading.Thread):
 
                 self.child_socket.send(pickle.dumps(all_choices))
 
-            elif int(choice.decode()) == -1:
+            elif choice == -1:
                 break
 
         self.child_socket.close()
 
 
-thread_count = 0
-while True:
-    child_socket, addr = server_socket.accept()     # Establish connection with client.
-    print('Got connection from', addr)
-    new_thread = threaded_client(child_socket, addr)
-    new_thread.start()
 
-    thread_count += 1
-    print('Thread Count = ', thread_count)
 
 # server_socket.close()
