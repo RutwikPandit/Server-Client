@@ -29,7 +29,7 @@ for file in file_names:
 
 public_servers = [12497, 12498, 12499]
 
-
+neighbour_info = {}
 neighbour_data = {}
 neighbour_count = 0
 child_count = 0
@@ -155,7 +155,7 @@ class handle_connection_request (threading.Thread):
         global neighbour_count
 
         client_type = int((self.connecting_socket.recv(1024)).decode())
-        #Download
+        #Download request from unknown ON
         if client_type == 3:
             tup = self.connecting_socket.recv(1024)
             (filename,directory) = pickle.loads(tup)
@@ -167,21 +167,20 @@ class handle_connection_request (threading.Thread):
                 l = f.read(1024)
             f.close()
             self.connecting_socket.close()
-
+        #Connection request from other SN
         elif client_type == 4:
             SN_ip = str(self.addr[0]) + str(self.addr[1])
 
             SN_meta_data = self.connecting_socket.recv(1024)
             SN_meta_data = pickle.loads(SN_meta_data)
 
-            
             add_neighbour_data(SN_meta_data)
             self.lock.acquire()
             neighbour_count += 1
 
             self.connecting_socket.send(pickle.dumps(file_to_addr))
             self.lock.release()
-
+        #Connection request from ON
         elif client_type == 5:
             new_thread = threaded_client(self.connecting_socket, self.addr)
             new_thread.start()
@@ -198,13 +197,3 @@ while True:
 
     thread_count += 1
     print('Thread Count = ', thread_count)
-
-
-
-
-
-
-
-
-
-# server_socket.close()
