@@ -154,7 +154,7 @@ if child_pid > 0:
 else:
 	listen_socket = socket.socket()
 	host = socket.gethostname()
-	listen_socket.bind((host, listen_port))
+	listen_socket.bind(('0.0.0.0', listen_port))
 	listen_socket.listen(100)
 	while True:
 		c, addr = listen_socket.accept()
