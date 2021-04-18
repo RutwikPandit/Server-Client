@@ -28,7 +28,7 @@ file_to_addr = {}
 for file in file_names:
     file_to_addr[file] = {((host, port),shared_dir)}
 
-public_servers = [12497, 12498, 12499 , 12013]
+public_servers = [12494, 12495, 12496, 12497, 12498, 12499 ]
 
 neighbour_servers = []
 neighbour_server_ports = []
@@ -112,7 +112,7 @@ class threaded_client (threading.Thread):
         self.lock = threading.Lock()
 
     def run(self):
-        global file_to_addr, child_count
+        global file_to_addr, child_count, host
         print("Running thread ", threading.get_ident())
         get_meta_data(self.child_socket, self.addr, self.lock)
 
@@ -173,6 +173,23 @@ class threaded_client (threading.Thread):
 
             #elif choice[0] == 6:
                 #print("Request for content from neighbour , content needed :%s , ip addr of requestor:%s",file_name)
+
+            elif choice == 3:
+
+                print('Choice: ',choice)
+
+                new_port = int((self.child_socket.recv(1024)).decode())
+                print('updating ON to SN on port: ',new_port)
+
+
+                SN_socket = socket.socket()
+                SN_socket.connect((host, new_port))
+                #To denote that a SN is connecting 
+                
+            #elif choice[0] == 6:
+                #print("Request for content from neighbour , content needed :%s , ip addr of requestor:%s",file_name)
+
+
 
             elif choice == -1:
                 break
